@@ -177,33 +177,58 @@ app.delete('/api/memory/:id', requireAuth, async (req, res) => {
 });
 
 const models = [
+  { id: 'google:gemini-3.8-flash', name: 'Gemini 3.8 Flash · Google' },
   { id: 'openapis:claude-opus-4-7', name: 'Claude Opus 4.7 · OpenAPIs beta' },
   { id: 'openapis:gpt-5.4', name: 'GPT-5.4 · OpenAPIs beta' }
 ];
-app.get('/api/models', (req, res) => res.json({ models, openrouterEnabled: false, provider: 'OpenAPIs beta' }));
+app.get('/api/models', (req, res) => res.json({ models, openrouterEnabled: false, provider: 'Google Gemini + OpenAPIs beta' }));
 
 app.post('/api/chat', requireAuth, async (req, res) => {
   const messages = cleanMessages(req.body?.messages);
   if (!messages.length || messages[messages.length - 1].role !== 'user') return res.status(400).json({ error: 'Send a message to start.' });
+
   const requested = String(req.body?.model || '');
   const map = {
     'openapis:claude-opus-4-7': 'claude-opus-4-7',
     'openapis:gpt-5.4': 'gpt-5.4'
   };
-  const model = map[requested] || 'gpt-5.4';
-  const base = process.env.OPENAPIS_BASE_URL || 'https://api.openapis.online';
-  const key = process.env.OPENAPIS_API_KEY || 'admin';
-  const isClaude = model.startsWith('claude-');
-  const url = isClaude ? base.replace(/\/$/, '') + '/anthropic/v1/messages' : base.replace(/\/$/, '') + '/openai/v1/chat/completions';
+
   try {
+    if (!requested || requested === 'google:gemini-3.8-flash') {
+      const key = process.env.GEMINI_API_KEY;
+      if (!key) return res.status(503).json({ error: 'Gemini is not configured yet. Add GEMINI_API_KEY in Railway Variables.' });
+
+      const contents = messages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent', {
+        method: 'POST',
+        headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1200 } })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = data?.error?.message || 'Google Gemini rejected the request.';
+        return res.status(502).json({ error: 'Gemini API error (' + response.status + '): ' + String(detail).slice(0, 240) });
+      }
+      const reply = (data.candidates?.[0]?.content?.parts || []).filter(p => typeof p.text === 'string').map(p => p.text).join('\n');
+      if (!reply) return res.status(502).json({ error: 'Gemini returned an empty reply. Check the model response or safety settings.' });
+      return res.json({ reply, model: 'gemini-3.8-flash' });
+    }
+
+    const model = map[requested];
+    if (!model) return res.status(400).json({ error: 'Unknown model selected.' });
+    const base = process.env.OPENAPIS_BASE_URL || 'https://api.openapis.online';
+    const key = process.env.OPENAPIS_API_KEY || 'admin';
+    const isClaude = model.startsWith('claude-');
+    const url = isClaude ? base.replace(/\/$/, '') + '/anthropic/v1/messages' : base.replace(/\/$/, '') + '/openai/v1/chat/completions';
     const response = await fetch(url, {
       method: 'POST',
       headers: isClaude
         ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }
         : { 'Authorization': 'Bearer ' + key, 'content-type': 'application/json' },
-      body: JSON.stringify(isClaude
-        ? { model, max_tokens: 1200, messages }
-        : { model, max_tokens: 1200, messages })
+      body: JSON.stringify({ model, max_tokens: 1200, messages })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
