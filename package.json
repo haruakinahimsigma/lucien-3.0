@@ -1,0 +1,16 @@
+{
+  "name": "lucien-3",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Lucien 3.0 — free research-focused AI assistant",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
