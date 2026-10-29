@@ -177,10 +177,8 @@ app.delete('/api/memory/:id', requireAuth, async (req, res) => {
 });
 
 const models = [
-  { id: 'openapis:claude-haiku-4-5', name: 'Claude Haiku 4.5 · OpenAPIs beta' },
-  { id: 'openapis:claude-sonnet-4-6', name: 'Claude Sonnet 4.6 · OpenAPIs beta' },
   { id: 'openapis:claude-opus-4-7', name: 'Claude Opus 4.7 · OpenAPIs beta' },
-  { id: 'openapis:gpt-5.4-mini', name: 'GPT-5.4 mini · OpenAPIs beta' }
+  { id: 'openapis:gpt-5.4', name: 'GPT-5.4 · OpenAPIs beta' }
 ];
 app.get('/api/models', (req, res) => res.json({ models, openrouterEnabled: false, provider: 'OpenAPIs beta' }));
 
@@ -189,12 +187,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (!messages.length || messages[messages.length - 1].role !== 'user') return res.status(400).json({ error: 'Send a message to start.' });
   const requested = String(req.body?.model || '');
   const map = {
-    'openapis:claude-haiku-4-5': 'claude-haiku-4-5',
-    'openapis:claude-sonnet-4-6': 'claude-sonnet-4-6',
     'openapis:claude-opus-4-7': 'claude-opus-4-7',
-    'openapis:gpt-5.4-mini': 'gpt-5.4-mini'
+    'openapis:gpt-5.4': 'gpt-5.4'
   };
-  const model = map[requested] || 'claude-haiku-4-5';
+  const model = map[requested] || 'gpt-5.4';
   const base = process.env.OPENAPIS_BASE_URL || 'https://api.openapis.online';
   const key = process.env.OPENAPIS_API_KEY || 'admin';
   const isClaude = model.startsWith('claude-');
